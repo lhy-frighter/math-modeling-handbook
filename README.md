@@ -4,9 +4,11 @@
 
 ## 在线访问
 
-GitHub Pages 地址（部署完成后在此显示）：
+GitHub Pages 在线地址：
 
-> https://&lt;你的用户名&gt;.github.io/&lt;仓库名&gt;/
+> https://lhy-frighter.github.io/math-modeling-handbook/
+
+仓库地址：https://github.com/lhy-frighter/math-modeling-handbook
 
 ## 本地使用
 
