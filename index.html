@@ -4694,6 +4694,8 @@ document.addEventListener('click',function(e){var d=e.target.closest('[data-deln
 renderNotesList();
 
 /* ---- 复习冲刺台 ---- */
+function freqScore(f){f=f||'';if(f.indexOf('极高')>=0)return 4;if(f.indexOf('中高')>=0)return 2;if(f.indexOf('高')>=0)return 3;if(f.indexOf('中')>=0)return 1;return 0;}
+var SPR_BONUS={m1:2,m10:2,m2:1,m5:1};
 var KROUTE={};document.querySelectorAll('.view').forEach(function(v){var r=v.id.replace('view-','');v.querySelectorAll('input[data-k]').forEach(function(i){KROUTE[i.dataset.k]=r;});});
 function renderReview(){
  if(!document.getElementById('rvCheckN'))return;
@@ -4701,7 +4703,7 @@ function renderReview(){
  document.getElementById('rvCheckN').textContent=done+'/'+boxes.length;
  var ds=dStat();document.getElementById('rvDrillN').textContent=ds.r+'/'+DRILL.length;
  var qr=0;Object.keys(qstate).forEach(function(k){if(qstate[k])qr++;});document.getElementById('rvQuizN').textContent=qr+'/'+QUIZ.length;
- var ch=MODELS.map(function(m){var p=progOf(m.ks)||{d:0,t:m.ks.length,p:0};return {m:m,p:p};}).sort(function(a,b){return a.p.p-b.p.p;});
+ var ch=MODELS.map(function(m){var p=progOf(m.ks)||{d:0,t:m.ks.length,p:0};return {m:m,p:p};}).sort(function(a,b){if(a.p.p!==b.p.p)return a.p.p-b.p.p;var sa=freqScore(a.m.f)+(SPR_BONUS[a.m.r]||0),sb=freqScore(b.m.f)+(SPR_BONUS[b.m.r]||0);return sb-sa;});
  document.getElementById('rvChapter').innerHTML=ch.map(function(x){var full=x.p.p===100;
   return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+x.m.no+' '+x.m.n+(full?' ✓ 已掌握':'')+'</div><div class="rv-bar"><i style="width:'+x.p.p+'%"></i></div><div class="rv-s">掌握 '+x.p.d+'/'+x.p.t+' · 频率 '+x.m.f+'</div></div><button class="rv-pill" data-sprint="'+x.m.r+'">去复习</button></div>';}).join('');
  var dw=[];DRILL.forEach(function(it,i){if(dstate[i]===false)dw.push({it:it,i:i});});
@@ -4720,50 +4722,56 @@ function renderReview(){
 }
 renderReview();
 
-/* ---- 冲刺学习线程：薄弱章节 + 错题串成可跨章连续学习的队列（刷新保留） ---- */
-var SPRINT_Q=null, SPRINT_I=0;
+/* ---- 冲刺学习线程：动态优先级队列，下一项永远跳到当前最该补的模块（刷新保留） ---- */
+var SPRINT_CUR=null, SPRINT_HIST=[];
 function buildSprint(){
  var q=[];
  MODELS.map(function(m){return {m:m,p:progOf(m.ks)||{d:0,t:m.ks.length,p:0}};})
-  .sort(function(a,b){return a.p.p-b.p.p;})
+  .sort(function(a,b){
+   if(a.p.p!==b.p.p)return a.p.p-b.p.p;
+   var sa=freqScore(a.m.f)+(SPR_BONUS[a.m.r]||0),sb=freqScore(b.m.f)+(SPR_BONUS[b.m.r]||0);
+   if(sa!==sb)return sb-sa;return 0;
+  })
   .forEach(function(x){if(x.p.p<100)q.push({r:x.m.r,t:x.m.no+' '+x.m.n});});
  var dw=0;DRILL.forEach(function(it,i){if(dstate[i]===false)dw++;});if(dw)q.push({r:'drill',t:'判题错题重练（'+dw+' 题）'});
  var qw=0;QUIZ.forEach(function(it,i){if(qstate[i]===false)qw++;});if(qw)q.push({r:'ref',t:'公式自测错题（'+qw+' 题）'});
  return q;
 }
-function saveSprint(){try{if(SPRINT_Q)localStorage.setItem('mcm-sprint',JSON.stringify({q:SPRINT_Q,i:SPRINT_I}));}catch(x){}}
-function clearSprint(){SPRINT_Q=null;try{localStorage.removeItem('mcm-sprint');}catch(x){}}
+function saveSprint(){try{if(SPRINT_CUR)localStorage.setItem('mcm-sprint',JSON.stringify({c:SPRINT_CUR,h:SPRINT_HIST}));}catch(x){}}
+function clearSprint(){SPRINT_CUR=null;SPRINT_HIST=[];try{localStorage.removeItem('mcm-sprint');}catch(x){}}
 function startSprint(r){
- var q=buildSprint();
- if(!q.length){go('review');return;}
- var idx=0;if(r){for(var i=0;i<q.length;i++){if(q[i].r===r){idx=i;break;}}}
- SPRINT_Q=q;SPRINT_I=idx;document.body.classList.add('sprinting');saveSprint();
- go(q[idx].r);
+ var q=buildSprint();if(!q.length){go('review');return;}
+ var cur=r;if(!cur||!q.some(function(x){return x.r===cur;}))cur=q[0].r;
+ SPRINT_CUR=cur;SPRINT_HIST=[];document.body.classList.add('sprinting');saveSprint();go(cur);
+}
+function sprintNextItem(){
+ var q=buildSprint(),t=null;
+ for(var i=0;i<q.length;i++){if(q[i].r!==SPRINT_CUR){t=q[i];break;}}
+ return {q:q,t:t};
 }
 function renderSprintBar(){
- var bar=document.getElementById('sprintBar');
- if(!bar)return;
- if(!SPRINT_Q){bar.classList.remove('on');document.body.classList.remove('sprinting');return;}
+ var bar=document.getElementById('sprintBar');if(!bar)return;
+ if(!SPRINT_CUR){bar.classList.remove('on');document.body.classList.remove('sprinting');return;}
  document.body.classList.add('sprinting');bar.classList.add('on');
- var n=SPRINT_Q.length,i=SPRINT_I;
- document.getElementById('sbIdx').textContent=i+1;
- document.getElementById('sbTotal').textContent=n;
- document.getElementById('sbCur').textContent='当前：'+SPRINT_Q[i].t;
- var pv=document.getElementById('sbPrev'),nx=document.getElementById('sbNext');
- pv.disabled=(i===0);
- pv.innerHTML=i>0?('‹ '+SPRINT_Q[i-1].t):'‹ 已是第一项';
- nx.innerHTML=(i===n-1)?'完成冲刺，回冲刺台 ✓':('下一项：'+SPRINT_Q[i+1].t+' ›');
+ var info=sprintNextItem(),q=info.q,t=info.t,idx=-1,i;
+ for(i=0;i<q.length;i++){if(q[i].r===SPRINT_CUR){idx=i;break;}}
+ document.getElementById('sbIdx').textContent=idx>=0?idx+1:'·';
+ document.getElementById('sbTotal').textContent=q.length;
+ document.getElementById('sbCur').textContent='当前：'+(idx>=0?q[idx].t:viewName(SPRINT_CUR));
+ var pv=document.getElementById('sbPrev'),nx=document.getElementById('sbNext'),hasPrev=SPRINT_HIST.length>0;
+ pv.disabled=!hasPrev;pv.innerHTML=hasPrev?'‹ 上一项':'‹ 已是第一项';
+ nx.innerHTML=t?('下一项：'+t.t+' ›'):'完成冲刺，回冲刺台 ✓';
 }
-function sprintStep(d){
- if(!SPRINT_Q)return;var ni=SPRINT_I+d;
- if(ni<0)return;
- if(ni>=SPRINT_Q.length){clearSprint();document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');return;}
- SPRINT_I=ni;saveSprint();go(SPRINT_Q[ni].r);
+function nextSprint(){
+ var info=sprintNextItem();
+ if(!info.t){clearSprint();document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');return;}
+ SPRINT_HIST.push(SPRINT_CUR);SPRINT_CUR=info.t.r;saveSprint();go(SPRINT_CUR);
 }
+function prevSprint(){if(!SPRINT_HIST.length)return;SPRINT_CUR=SPRINT_HIST.pop();saveSprint();go(SPRINT_CUR);}
 function exitSprint(){clearSprint();document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');}
 (function(){
  var sw=document.createElement('div');sw.id='sbStartWrap';
- sw.innerHTML='<button class="btn primary" id="sbStart">▶ 按推荐顺序开始冲刺</button><span class="sb-hint">从最薄弱项开始，页面底部可直接跳到下一项（跨章节），随时一键返回冲刺台，不用来回切；中途刷新也会保留进度。</span>';
+ sw.innerHTML='<button class="btn primary" id="sbStart">▶ 按推荐顺序开始冲刺</button><span class="sb-hint">从最薄弱、最高频的模块开始；底部"下一项"会按你最新的掌握度动态跳到最该补的模块（跨章节），学完一章打勾后顺序会实时更新，随时一键返回冲刺台，刷新也不丢。</span>';
  var stat=document.querySelector('#view-review .rv-stat');if(stat&&stat.parentNode)stat.parentNode.insertBefore(sw,stat.nextSibling);
  document.querySelectorAll('section.view').forEach(function(v){
   var r=v.id.replace('view-',''),mid=v.querySelector('.pager .mid');
@@ -4773,13 +4781,14 @@ function exitSprint(){clearSprint();document.body.classList.remove('sprinting');
   var j=e.target.closest('[data-join]');if(j){startSprint(j.getAttribute('data-join'));return;}
   var s=e.target.closest('[data-sprint]');if(s){startSprint(s.getAttribute('data-sprint'));return;}
   if(e.target.closest('#sbStart')){startSprint();return;}
-  if(e.target.closest('#sbPrev'))sprintStep(-1);
-  if(e.target.closest('#sbNext'))sprintStep(1);
+  if(e.target.closest('#sbPrev')){prevSprint();return;}
+  if(e.target.closest('#sbNext')){nextSprint();return;}
   if(e.target.closest('#sbExit'))exitSprint();
  });
+ document.addEventListener('change',function(e){if(SPRINT_CUR&&e.target&&e.target.matches&&e.target.matches('input[data-k]'))setTimeout(renderSprintBar,0);});
  try{
   var sv=JSON.parse(localStorage.getItem('mcm-sprint')||'null');
-  if(sv&&sv.q&&sv.q.length){SPRINT_Q=sv.q;SPRINT_I=Math.min(Math.max(sv.i||0,0),sv.q.length-1);document.body.classList.add('sprinting');renderSprintBar();}
+  if(sv&&sv.c){SPRINT_CUR=sv.c;SPRINT_HIST=Array.isArray(sv.h)?sv.h:[];document.body.classList.add('sprinting');renderSprintBar();}
  }catch(x){}
 })();
 
