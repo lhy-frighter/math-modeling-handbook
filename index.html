@@ -444,6 +444,10 @@ body.sprinting footer{margin-bottom:62px}
 body.sprinting #noteBtn,body.sprinting #toTop{bottom:74px}
 #sbStartWrap{display:none;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0 6px}
 .sb-hint{font-size:12.5px;color:var(--text-3)}
+.pager .mid{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.sb-join{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:99px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .14s}
+.sb-join:hover{background:var(--accent-soft)}
+body.sprinting .sb-join{border-color:var(--text-3);color:var(--text-3)}
 @media(max-width:860px){#sprintBar{gap:7px;padding:8px 9px}.sb-nav{padding:7px 10px;font-size:11.5px;max-width:31%}.sb-nav.sb-next{max-width:40%}.sb-mid{min-width:84px}.sb-cur{display:none}.sb-prog{font-size:10.5px}body.sprinting footer{margin-bottom:56px}}
 
 .rv-group-tag{font-size:11.5px;color:var(--text-3);margin:14px 0 2px}
@@ -4716,7 +4720,7 @@ function renderReview(){
 }
 renderReview();
 
-/* ---- 冲刺学习线程：把薄弱章节 + 错题串成一条可跨章连续学习的队列 ---- */
+/* ---- 冲刺学习线程：薄弱章节 + 错题串成可跨章连续学习的队列（刷新保留） ---- */
 var SPRINT_Q=null, SPRINT_I=0;
 function buildSprint(){
  var q=[];
@@ -4727,11 +4731,13 @@ function buildSprint(){
  var qw=0;QUIZ.forEach(function(it,i){if(qstate[i]===false)qw++;});if(qw)q.push({r:'ref',t:'公式自测错题（'+qw+' 题）'});
  return q;
 }
+function saveSprint(){try{if(SPRINT_Q)localStorage.setItem('mcm-sprint',JSON.stringify({q:SPRINT_Q,i:SPRINT_I}));}catch(x){}}
+function clearSprint(){SPRINT_Q=null;try{localStorage.removeItem('mcm-sprint');}catch(x){}}
 function startSprint(r){
  var q=buildSprint();
  if(!q.length){go('review');return;}
  var idx=0;if(r){for(var i=0;i<q.length;i++){if(q[i].r===r){idx=i;break;}}}
- SPRINT_Q=q;SPRINT_I=idx;document.body.classList.add('sprinting');
+ SPRINT_Q=q;SPRINT_I=idx;document.body.classList.add('sprinting');saveSprint();
  go(q[idx].r);
 }
 function renderSprintBar(){
@@ -4751,26 +4757,35 @@ function renderSprintBar(){
 function sprintStep(d){
  if(!SPRINT_Q)return;var ni=SPRINT_I+d;
  if(ni<0)return;
- if(ni>=SPRINT_Q.length){SPRINT_Q=null;document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');return;}
- SPRINT_I=ni;go(SPRINT_Q[ni].r);
+ if(ni>=SPRINT_Q.length){clearSprint();document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');return;}
+ SPRINT_I=ni;saveSprint();go(SPRINT_Q[ni].r);
 }
-function exitSprint(){SPRINT_Q=null;document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');}
+function exitSprint(){clearSprint();document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');}
 (function(){
  var sw=document.createElement('div');sw.id='sbStartWrap';
- sw.innerHTML='<button class="btn primary" id="sbStart">▶ 按推荐顺序开始冲刺</button><span class="sb-hint">从最薄弱项开始，页面底部可直接跳到下一项（跨章节），随时一键返回冲刺台，不用来回切。</span>';
+ sw.innerHTML='<button class="btn primary" id="sbStart">▶ 按推荐顺序开始冲刺</button><span class="sb-hint">从最薄弱项开始，页面底部可直接跳到下一项（跨章节），随时一键返回冲刺台，不用来回切；中途刷新也会保留进度。</span>';
  var stat=document.querySelector('#view-review .rv-stat');if(stat&&stat.parentNode)stat.parentNode.insertBefore(sw,stat.nextSibling);
+ document.querySelectorAll('section.view').forEach(function(v){
+  var r=v.id.replace('view-',''),mid=v.querySelector('.pager .mid');
+  if(mid&&/^m\d+$/.test(r)){var b=document.createElement('button');b.className='sb-join';b.setAttribute('data-join',r);b.textContent='⛟ 冲刺此章';mid.appendChild(b);}
+ });
  document.addEventListener('click',function(e){
+  var j=e.target.closest('[data-join]');if(j){startSprint(j.getAttribute('data-join'));return;}
   var s=e.target.closest('[data-sprint]');if(s){startSprint(s.getAttribute('data-sprint'));return;}
   if(e.target.closest('#sbStart')){startSprint();return;}
   if(e.target.closest('#sbPrev'))sprintStep(-1);
   if(e.target.closest('#sbNext'))sprintStep(1);
   if(e.target.closest('#sbExit'))exitSprint();
  });
+ try{
+  var sv=JSON.parse(localStorage.getItem('mcm-sprint')||'null');
+  if(sv&&sv.q&&sv.q.length){SPRINT_Q=sv.q;SPRINT_I=Math.min(Math.max(sv.i||0,0),sv.q.length-1);document.body.classList.add('sprinting');renderSprintBar();}
+ }catch(x){}
 })();
 
 /* ---- 再包一层路由：切换时刷新笔记圆点 / 复习 / 笔记页 ---- */
 var __goP2=go;
-go=function(r,s){__goP2(r,s);markNoteDot(r);if(r==='review'){SPRINT_Q=null;document.body.classList.remove('sprinting');renderReview();}if(r==='notes')renderNotesList();renderSprintBar();};
+go=function(r,s){__goP2(r,s);markNoteDot(r);if(r==='review'){clearSprint();document.body.classList.remove('sprinting');renderReview();}if(r==='notes')renderNotesList();renderSprintBar();};
 markNoteDot();
 
 })();
