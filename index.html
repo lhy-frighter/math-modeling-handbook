@@ -278,7 +278,7 @@ footer{border-top:1px solid var(--border);padding:26px 20px;text-align:center;co
   .view-head h2{font-size:22px}
   .rv-stat{gap:9px}.rv-cell{padding:11px 12px}.rv-cell .n{font-size:22px}
 }
-@media print{.topbar,#toTop,.pager,.side-nav,.side-mask,.global-hit,#readProgress,.icon-btn,.mini-progress,.searchbox,#searchCount{display:none!important}.view{display:none!important}.view.active{display:block!important;padding:0!important}body{background:#fff!important;color:#000}main{max-width:100%!important;margin:0!important}.view-head .btn{display:none!important}.cheat-wrap{grid-template-columns:1fr 1fr!important}}
+@media print{.topbar,#toTop,.pager,.side-nav,.side-mask,.global-hit,#readProgress,.icon-btn,.mini-progress,.searchbox,#searchCount,#sprintBar,#sbStartWrap{display:none!important}.view{display:none!important}.view.active{display:block!important;padding:0!important}body{background:#fff!important;color:#000}main{max-width:100%!important;margin:0!important}.view-head .btn{display:none!important}.cheat-wrap{grid-template-columns:1fr 1fr!important}}
 
 /* ============ 真题案例子页 ============ */
 .case-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:16px 0}
@@ -426,6 +426,26 @@ footer{border-top:1px solid var(--border);padding:26px 20px;text-align:center;co
 .rv-bar i{display:block;height:100%;background:var(--accent)}
 .rv-pill{flex:none;font-size:12px;padding:5px 13px;border-radius:99px;border:1px solid var(--accent);color:var(--accent);cursor:pointer;background:none;white-space:nowrap}
 .rv-pill:hover{background:var(--accent-soft)}
+
+/* 冲刺学习线程底部导航条 */
+#sprintBar{position:fixed;left:0;right:0;bottom:0;z-index:150;display:none;gap:12px;align-items:center;justify-content:center;padding:10px 18px;background:linear-gradient(180deg,rgba(11,74,68,.95),rgba(15,118,110,.97));border-top:1px solid var(--accent-2);box-shadow:0 -8px 30px -12px rgba(0,0,0,.35)}
+#sprintBar.on{display:flex}
+.sb-nav{flex:0 1 auto;max-width:34%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:99px;padding:8px 15px;font-size:12.8px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .14s}
+.sb-nav:hover:not(:disabled){background:rgba(255,255,255,.22)}
+.sb-nav:disabled{opacity:.4;cursor:default}
+.sb-nav.sb-next{background:#fff;color:var(--accent-ink);font-weight:700;border-color:#fff;max-width:44%}
+.sb-nav.sb-next:hover{background:var(--accent-soft)}
+.sb-mid{flex:none;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:128px}
+.sb-prog{color:#dcefec;font-size:11.5px;letter-spacing:.04em}.sb-prog b{color:#fff;font-size:14.5px}
+.sb-cur{color:#fff;font-size:12.3px;font-weight:600;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-exit{background:none;border:none;color:#bfe3de;font-size:11.5px;cursor:pointer;text-decoration:underline;font-family:inherit;padding:2px}
+.sb-exit:hover{color:#fff}
+body.sprinting footer{margin-bottom:62px}
+body.sprinting #noteBtn,body.sprinting #toTop{bottom:74px}
+#sbStartWrap{display:none;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0 6px}
+.sb-hint{font-size:12.5px;color:var(--text-3)}
+@media(max-width:860px){#sprintBar{gap:7px;padding:8px 9px}.sb-nav{padding:7px 10px;font-size:11.5px;max-width:31%}.sb-nav.sb-next{max-width:40%}.sb-mid{min-width:84px}.sb-cur{display:none}.sb-prog{font-size:10.5px}body.sprinting footer{margin-bottom:56px}}
+
 .rv-group-tag{font-size:11.5px;color:var(--text-3);margin:14px 0 2px}
 .note-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:13px 16px;margin:10px 0}
 .note-card .nc-h{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -4019,6 +4039,16 @@ fig.savefig('fig.emf');plt.show()                         # Word 矢量用 emf</
 </section>
 <div class="no-result" id="noResult">当前页没有找到匹配内容，换个关键词试试（如：聚类、权重、时间序列），或到其他章节查找。</div>
 </main>
+<div id="sprintBar">
+  <button class="sb-nav" id="sbPrev" disabled>‹ 已是第一项</button>
+  <div class="sb-mid">
+    <div class="sb-prog"><b id="sbIdx">1</b>/<span id="sbTotal">1</span> · 冲刺线程</div>
+    <div class="sb-cur" id="sbCur"></div>
+    <button class="sb-exit" id="sbExit">⤺ 返回冲刺台</button>
+  </div>
+  <button class="sb-nav sb-next" id="sbNext">下一项 ›</button>
+</div>
+
 <button id="noteBtn" title="给本页记笔记（自动保存在本机）">✎<span class="ndot"></span></button>
 <div class="np-mask" id="npMask"></div>
 <aside class="note-panel" id="notePanel">
@@ -4669,25 +4699,78 @@ function renderReview(){
  var qr=0;Object.keys(qstate).forEach(function(k){if(qstate[k])qr++;});document.getElementById('rvQuizN').textContent=qr+'/'+QUIZ.length;
  var ch=MODELS.map(function(m){var p=progOf(m.ks)||{d:0,t:m.ks.length,p:0};return {m:m,p:p};}).sort(function(a,b){return a.p.p-b.p.p;});
  document.getElementById('rvChapter').innerHTML=ch.map(function(x){var full=x.p.p===100;
-  return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+x.m.no+' '+x.m.n+(full?' ✓ 已掌握':'')+'</div><div class="rv-bar"><i style="width:'+x.p.p+'%"></i></div><div class="rv-s">掌握 '+x.p.d+'/'+x.p.t+' · 频率 '+x.m.f+'</div></div><button class="rv-pill" data-route="'+x.m.r+'">去复习</button></div>';}).join('');
+  return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+x.m.no+' '+x.m.n+(full?' ✓ 已掌握':'')+'</div><div class="rv-bar"><i style="width:'+x.p.p+'%"></i></div><div class="rv-s">掌握 '+x.p.d+'/'+x.p.t+' · 频率 '+x.m.f+'</div></div><button class="rv-pill" data-sprint="'+x.m.r+'">去复习</button></div>';}).join('');
  var dw=[];DRILL.forEach(function(it,i){if(dstate[i]===false)dw.push({it:it,i:i});});
- document.getElementById('rvDrill').innerHTML=dw.length?dw.map(function(x){return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+(x.i+1)+'. '+x.it.q+'</div><div class="rv-s">解析：'+x.it.e+'</div></div><button class="rv-pill" data-route="drill">去重练</button></div>';}).join(''):'<div class="note" style="margin:8px 0">判题暂无错题，状态不错。</div>';
+ document.getElementById('rvDrill').innerHTML=dw.length?dw.map(function(x){return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+(x.i+1)+'. '+x.it.q+'</div><div class="rv-s">解析：'+x.it.e+'</div></div><button class="rv-pill" data-sprint="drill">去重练</button></div>';}).join(''):'<div class="note" style="margin:8px 0">判题暂无错题，状态不错。</div>';
  var qw=[];QUIZ.forEach(function(it,i){if(qstate[i]===false)qw.push({it:it,i:i});});
- document.getElementById('rvQuiz').innerHTML=qw.length?qw.map(function(x){return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+(x.i+1)+'. '+x.it.q+'</div><div class="rv-s">解析：'+x.it.e+'</div></div><button class="rv-pill" data-route="ref">去重看</button></div>';}).join(''):'<div class="note" style="margin:8px 0">自测暂无错题。</div>';
+ document.getElementById('rvQuiz').innerHTML=qw.length?qw.map(function(x){return '<div class="rv-item"><div class="rv-main"><div class="rv-t">'+(x.i+1)+'. '+x.it.q+'</div><div class="rv-s">解析：'+x.it.e+'</div></div><button class="rv-pill" data-sprint="ref">去重看</button></div>';}).join(''):'<div class="note" style="margin:8px 0">自测暂无错题。</div>';
  var groups={},order=[];
  boxes.forEach(function(b){if(!b.checked){var r=KROUTE[b.dataset.k]||'toc';var line=b.closest('.checkline');var tx=line?line.textContent.trim():b.dataset.k;if(!groups[r]){groups[r]=[];order.push(r);}groups[r].push(tx);}});
  var missN=order.reduce(function(s,r){return s+groups[r].length;},0);
- document.getElementById('rvChecks').innerHTML=order.map(function(r){return '<div class="rv-group-tag">'+viewName(r)+'</div>'+groups[r].map(function(t){return '<div class="rv-item"><div class="rv-main"><div class="rv-s">'+escHtml(t)+'</div></div><button class="rv-pill" data-route="'+r+'">去学习</button></div>';}).join('');}).join('')||'<div class="note" style="margin:8px 0">所有知识点都已打勾，知识点层面已全覆盖。</div>';
+ document.getElementById('rvChecks').innerHTML=order.map(function(r){return '<div class="rv-group-tag">'+viewName(r)+'</div>'+groups[r].map(function(t){return '<div class="rv-item"><div class="rv-main"><div class="rv-s">'+escHtml(t)+'</div></div><button class="rv-pill" data-sprint="'+r+'">去学习</button></div>';}).join('');}).join('')||'<div class="note" style="margin:8px 0">所有知识点都已打勾，知识点层面已全覆盖。</div>';
  var total=dw.length+qw.length+missN;
+ var sbw=document.getElementById('sbStartWrap');if(sbw)sbw.style.display=total>0?'flex':'none';
  document.getElementById('rvAll').innerHTML= total===0
   ? '全部知识点已掌握、判题与自测零错题。接下来建议：到 <a data-route="cheat">一页纸速查</a> 过一遍判据、到 <a data-route="fig">配图指南</a> 准备图表、按 <a data-route="plan">赛程分工</a> 进入实战状态。'
   : '当前共有 <b>'+total+'</b> 项待复习（'+missN+' 个知识点、'+dw.length+' 道判题错题、'+qw.length+' 道自测错题）。建议先攻掌握度最低的章节，再用错题做主动回忆，每清一项回本页看进度缩短。';
 }
 renderReview();
 
+/* ---- 冲刺学习线程：把薄弱章节 + 错题串成一条可跨章连续学习的队列 ---- */
+var SPRINT_Q=null, SPRINT_I=0;
+function buildSprint(){
+ var q=[];
+ MODELS.map(function(m){return {m:m,p:progOf(m.ks)||{d:0,t:m.ks.length,p:0}};})
+  .sort(function(a,b){return a.p.p-b.p.p;})
+  .forEach(function(x){if(x.p.p<100)q.push({r:x.m.r,t:x.m.no+' '+x.m.n});});
+ var dw=0;DRILL.forEach(function(it,i){if(dstate[i]===false)dw++;});if(dw)q.push({r:'drill',t:'判题错题重练（'+dw+' 题）'});
+ var qw=0;QUIZ.forEach(function(it,i){if(qstate[i]===false)qw++;});if(qw)q.push({r:'ref',t:'公式自测错题（'+qw+' 题）'});
+ return q;
+}
+function startSprint(r){
+ var q=buildSprint();
+ if(!q.length){go('review');return;}
+ var idx=0;if(r){for(var i=0;i<q.length;i++){if(q[i].r===r){idx=i;break;}}}
+ SPRINT_Q=q;SPRINT_I=idx;document.body.classList.add('sprinting');
+ go(q[idx].r);
+}
+function renderSprintBar(){
+ var bar=document.getElementById('sprintBar');
+ if(!bar)return;
+ if(!SPRINT_Q){bar.classList.remove('on');document.body.classList.remove('sprinting');return;}
+ document.body.classList.add('sprinting');bar.classList.add('on');
+ var n=SPRINT_Q.length,i=SPRINT_I;
+ document.getElementById('sbIdx').textContent=i+1;
+ document.getElementById('sbTotal').textContent=n;
+ document.getElementById('sbCur').textContent='当前：'+SPRINT_Q[i].t;
+ var pv=document.getElementById('sbPrev'),nx=document.getElementById('sbNext');
+ pv.disabled=(i===0);
+ pv.innerHTML=i>0?('‹ '+SPRINT_Q[i-1].t):'‹ 已是第一项';
+ nx.innerHTML=(i===n-1)?'完成冲刺，回冲刺台 ✓':('下一项：'+SPRINT_Q[i+1].t+' ›');
+}
+function sprintStep(d){
+ if(!SPRINT_Q)return;var ni=SPRINT_I+d;
+ if(ni<0)return;
+ if(ni>=SPRINT_Q.length){SPRINT_Q=null;document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');return;}
+ SPRINT_I=ni;go(SPRINT_Q[ni].r);
+}
+function exitSprint(){SPRINT_Q=null;document.body.classList.remove('sprinting');document.getElementById('sprintBar').classList.remove('on');go('review');}
+(function(){
+ var sw=document.createElement('div');sw.id='sbStartWrap';
+ sw.innerHTML='<button class="btn primary" id="sbStart">▶ 按推荐顺序开始冲刺</button><span class="sb-hint">从最薄弱项开始，页面底部可直接跳到下一项（跨章节），随时一键返回冲刺台，不用来回切。</span>';
+ var stat=document.querySelector('#view-review .rv-stat');if(stat&&stat.parentNode)stat.parentNode.insertBefore(sw,stat.nextSibling);
+ document.addEventListener('click',function(e){
+  var s=e.target.closest('[data-sprint]');if(s){startSprint(s.getAttribute('data-sprint'));return;}
+  if(e.target.closest('#sbStart')){startSprint();return;}
+  if(e.target.closest('#sbPrev'))sprintStep(-1);
+  if(e.target.closest('#sbNext'))sprintStep(1);
+  if(e.target.closest('#sbExit'))exitSprint();
+ });
+})();
+
 /* ---- 再包一层路由：切换时刷新笔记圆点 / 复习 / 笔记页 ---- */
 var __goP2=go;
-go=function(r,s){__goP2(r,s);markNoteDot(r);if(r==='review')renderReview();if(r==='notes')renderNotesList();};
+go=function(r,s){__goP2(r,s);markNoteDot(r);if(r==='review'){SPRINT_Q=null;document.body.classList.remove('sprinting');renderReview();}if(r==='notes')renderNotesList();renderSprintBar();};
 markNoteDot();
 
 })();
